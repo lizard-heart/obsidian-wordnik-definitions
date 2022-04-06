@@ -12,107 +12,83 @@ import {
   request,
 } from "obsidian";
 
-interface WikipediaExtract {
+interface WordnikExtract {
   title: string;
-  text: string;
+  text: string[];
   url: string;
 }
 
-interface WikipediaPluginSettings {
+interface WordnikPluginSettings {
   template: string;
   shouldUseParagraphTemplate: boolean;
   shouldBoldSearchTerm: boolean;
+  apiKey: string;
   paragraphTemplate: string;
   language: string;
+  maxDefinitions: number;
 }
 
-const DEFAULT_SETTINGS: WikipediaPluginSettings = {
-  template: `{{text}}\n> [Wikipedia]({{url}})`,
+const DEFAULT_SETTINGS: WordnikPluginSettings = {
+  template: `## {{searchTerm}}\n {{text}}\n> [Additional info]({{url}})`,
   shouldUseParagraphTemplate: true,
   shouldBoldSearchTerm: true,
   paragraphTemplate: `> {{paragraphText}}\n>\n`,
   language: "en",
+  apiKey: "",
+  maxDefinitions: 5,
 };
 
-const extractApiUrl =
-  "wikipedia.org/w/api.php?format=json&action=query&prop=extracts&explaintext=1&redirects&origin=*&titles=";
-
 const disambiguationIdentifier = "may refer to:";
-export default class WikipediaPlugin extends Plugin {
-  settings: WikipediaPluginSettings;
+export default class WordnikPlugin extends Plugin {
+  settings: WordnikPluginSettings;
 
-  getLanguage(): string {
-    return this.settings.language ? this.settings.language : "en";
+
+  getApiUrl(title: string): string {
+    return "https://api.wordnik.com/v4/word.json/" + encodeURIComponent(title) + "/definitions?limit=200&includeRelated=false&useCanonical=false&includeTags=false&api_key=" + this.settings.apiKey;
   }
 
-  getUrl(title: string): string {
-    return `https://${this.getLanguage()}.wikipedia.org/wiki/${encodeURI(
-      title
-    )}`;
-  }
 
-  getApiUrl(): string {
-    return `https://${this.getLanguage()}.` + extractApiUrl;
-  }
+  formatExtractText(extract: WordnikExtract, searchTerm: string): string {
+    var textToReturn = ""
+    for (var i = 0; i < extract.text.length; i++) {
+      if (i < this.settings.maxDefinitions) {
+        textToReturn += extract.text[i] + "\n"
+      }
 
-  formatExtractText(extract: WikipediaExtract, searchTerm: string): string {
-    const text = extract.text;
-    let formattedText: string = "";
-    if (this.settings.shouldUseParagraphTemplate) {
-      const split = text.split("==")[0].trim().split("\n");
-      formattedText = split
-        .map((paragraph) =>
-          this.settings.paragraphTemplate.replace(
-            "{{paragraphText}}",
-            paragraph
-          )
-        )
-        .join("")
-        .trim();
-    } else {
-      formattedText = text.split("==")[0].trim();
     }
-    if (this.settings.shouldBoldSearchTerm) {
-      const pattern = new RegExp(searchTerm, "i");
-      formattedText = formattedText.replace(pattern, `**${searchTerm}**`);
-    }
-    return formattedText;
+    return textToReturn;
   }
 
   handleNotFound(searchTerm: string) {
-    new Notice(`${searchTerm} not found on Wikipedia.`);
+    new Notice(`${searchTerm} not found in the wordnik database.`);
   }
 
   handleCouldntResolveDisambiguation() {
     new Notice(`Could not automatically resolve disambiguation.`);
   }
 
-  hasDisambiguation(extract: WikipediaExtract) {
-    if (extract.text.includes(disambiguationIdentifier)) {
-      return true;
-    }
+  hasDisambiguation(extract: WordnikExtract) {
+    // if (extract.text.includes(disambiguationIdentifier)) {
+    //   return true;
+    // }
     return false;
   }
 
-  parseResponse(json: any): WikipediaExtract | undefined {
-    const pages = json.query.pages;
-    const pageKeys = Object.keys(pages);
-    if (pageKeys.includes("-1")) {
-      return undefined;
+  parseResponse(json: any): WordnikExtract | undefined {
+    const definitions = []
+    for (let i = 0; i < Number(json["length"]); i++) {
+      definitions.push("*" + json[i]["partOfSpeech"] + "*: " + json[i]["text"])
     }
-    const extracts: WikipediaExtract[] = pageKeys.map((key) => {
-      const page = pages[key];
-      const extract: WikipediaExtract = {
-        title: page.title,
-        text: page.extract,
-        url: this.getUrl(page.title),
-      };
-      return extract;
-    });
-    return extracts[0];
+    const extract: WordnikExtract = {
+      title: "word",
+      text: definitions,
+      url: json[0]["wordnikUrl"]
+    }
+    console.log(extract)
+    return extract
   }
 
-  formatExtractInsert(extract: WikipediaExtract, searchTerm: string): string {
+  formatExtractInsert(extract: WordnikExtract, searchTerm: string): string {
     const formattedText = this.formatExtractText(extract, searchTerm);
     const template = this.settings.template;
     const formattedTemplate = template
@@ -122,8 +98,9 @@ export default class WikipediaPlugin extends Plugin {
     return formattedTemplate;
   }
 
-  async getWikipediaText(title: string): Promise<WikipediaExtract | undefined> {
-    const url = this.getApiUrl() + encodeURIComponent(title);
+  async getWordnikText(title: string): Promise<WordnikExtract | undefined> {
+    const url = this.getApiUrl(title);
+    console.log(url)
     const requestParam: RequestParam = {
       url: url,
     };
@@ -132,40 +109,24 @@ export default class WikipediaPlugin extends Plugin {
       .catch(
         () =>
           new Notice(
-            "Failed to get Wikipedia. Check your internet connection or language prefix."
+            "Failed to get Wordnik data. Check your internet connection."
           )
       );
+    console.log(resp)
     const extract = this.parseResponse(resp);
     return extract;
   }
 
   async pasteIntoEditor(editor: Editor, searchTerm: string) {
-    let extract: WikipediaExtract = await this.getWikipediaText(searchTerm);
+    let extract: WordnikExtract = await this.getWordnikText(searchTerm);
     if (!extract) {
       this.handleNotFound(searchTerm);
       return;
     }
-    if (this.hasDisambiguation(extract)) {
-      new Notice(
-        `Disambiguation found for ${searchTerm}. Choosing first result.`
-      );
-      const newSearchTerm = extract.text
-        .split(disambiguationIdentifier)[1]
-        .trim()
-        .split(",")[0]
-        .split("==")
-        .pop()
-        .trim();
-      extract = await this.getWikipediaText(newSearchTerm);
-      if (!extract) {
-        this.handleCouldntResolveDisambiguation();
-        return;
-      }
-    }
     editor.replaceSelection(this.formatExtractInsert(extract, searchTerm));
   }
 
-  async getWikipediaTextForActiveFile(editor: Editor) {
+  async getWordnikTextForActiveFile(editor: Editor) {
     const activeFile = await this.app.workspace.getActiveFile();
     if (activeFile) {
       const searchTerm = activeFile.basename;
@@ -175,7 +136,7 @@ export default class WikipediaPlugin extends Plugin {
     }
   }
 
-  async getWikipediaTextForSearchTerm(editor: Editor) {
+  async getWordnikTextForSearchTerm(editor: Editor) {
     new WikipediaSearchModal(this.app, this, editor).open();
   }
 
@@ -183,17 +144,17 @@ export default class WikipediaPlugin extends Plugin {
     await this.loadSettings();
 
     this.addCommand({
-      id: "wikipedia-get-active-note-title",
-      name: "Get Wikipedia for Active Note Title",
+      id: "wordnik-get-active-note-title",
+      name: "Get Wordik data for Active Note Title",
       editorCallback: (editor: Editor) =>
-        this.getWikipediaTextForActiveFile(editor),
+        this.getWordnikTextForActiveFile(editor),
     });
 
     this.addCommand({
-      id: "wikipedia-get-search-term",
-      name: "Get Wikipedia for Search Term",
+      id: "wordnik-get-search-term",
+      name: "Get Wordnik data for Search Term",
       editorCallback: (editor: Editor) =>
-        this.getWikipediaTextForSearchTerm(editor),
+        this.getWordnikTextForSearchTerm(editor),
     });
 
     this.addSettingTab(new WikipediaSettingTab(this.app, this));
@@ -210,10 +171,10 @@ export default class WikipediaPlugin extends Plugin {
 
 class WikipediaSearchModal extends Modal {
   searchTerm: string;
-  plugin: WikipediaPlugin;
+  plugin: WordnikPlugin;
   editor: Editor;
 
-  constructor(app: App, plugin: WikipediaPlugin, editor: Editor) {
+  constructor(app: App, plugin: WordnikPlugin, editor: Editor) {
     super(app);
     this.plugin = plugin;
     this.editor = editor;
@@ -259,9 +220,9 @@ class WikipediaSearchModal extends Modal {
 }
 
 class WikipediaSettingTab extends PluginSettingTab {
-  plugin: WikipediaPlugin;
+  plugin: WordnikPlugin;
 
-  constructor(app: App, plugin: WikipediaPlugin) {
+  constructor(app: App, plugin: WordnikPlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -271,11 +232,11 @@ class WikipediaSettingTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Obsidian Wikipedia" });
+    containerEl.createEl("h2", { text: "Obsidian Wordnik" });
 
     new Setting(containerEl)
-      .setName("Wikipedia Language Prefix")
-      .setDesc(`Choose Wikipedia language prefix to use (ex. en for English)`)
+      .setName("Wordnik Language Prefix")
+      .setDesc(`Choose Wordnik language prefix to use (ex. en for English)`)
       .addText((textField) => {
         textField
           .setValue(this.plugin.settings.language)
@@ -286,7 +247,7 @@ class WikipediaSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Wikipedia Extract Template")
+      .setName("Wordnik Extract Template")
       .setDesc(
         `Set markdown template for extract to be inserted.\n
         Available template variables are {{text}}, {{searchTerm}} and {{url}}.
@@ -300,6 +261,35 @@ class WikipediaSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+
+    new Setting(containerEl)
+      .setName("Wordnik API Key")
+      .setDesc(
+        "You will need to include your Wordnik API key to use this plugin."
+      )
+      .addText((textField) => {
+        textField
+          .setValue(this.plugin.settings.apiKey)
+          .onChange(async (value) => {
+            this.plugin.settings.apiKey = value;
+            await this.plugin.saveSettings();
+          });
+      });
+    
+    new Setting(containerEl)
+      .setName("Maximum Definitions")
+      .setDesc(
+        "The most definitions from wordnik that will be shown in the result."
+      )
+      .addText((textField) => {
+        textField
+          .setValue(String(this.plugin.settings.maxDefinitions))
+          .onChange(async (value) => {
+            this.plugin.settings.maxDefinitions = Number(value);
+            await this.plugin.saveSettings();
+          });
+      });
 
     new Setting(containerEl)
       .setName("Bold Search Term?")

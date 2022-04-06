@@ -1,10 +1,10 @@
 {
-  "id": "obsidian-wikipedia",
-  "name": "Wikipedia",
-  "version": "1.0.3",
+  "id": "obsidian-wordnik",
+  "name": "Wordnik Definitions",
+  "version": "1.0.0",
   "minAppVersion": "0.9.12",
-  "description": "Grabs information from Wikipedia for a topic and brings it into Obsidian notes",
-  "author": "Jonathan Miller",
-  "authorUrl": "https://jmill.dev",
+  "description": "Grabs information from Wordnik for a topic and brings it into Obsidian notes",
+  "author": "Henry Gustafson",
+  "authorUrl": "https://lizard-heart.github.io",
   "isDesktopOnly": false
 }

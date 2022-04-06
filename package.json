@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-wikipedia",
-  "version": "1.0.3",
-  "description": "Grabs information from Wikipedia for a topic and brings it into Obsidian notes",
+  "name": "obsidian-wordnik",
+  "version": "1.0.0",
+  "description": "Grabs information from Wordnik for a topic and brings it into Obsidian notes",
   "main": "main.js",
   "scripts": {
     "dev": "rollup --config rollup.config.js -w",
@@ -10,7 +10,7 @@
   "keywords": [
     "obsidian-plugin"
   ],
-  "author": "Jonathan Miller",
+  "author": "Henry Gustafson",
   "license": "MIT",
   "devDependencies": {
     "@rollup/plugin-commonjs": "^18.0.0",
