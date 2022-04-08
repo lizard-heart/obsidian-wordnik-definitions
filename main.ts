@@ -18,6 +18,7 @@ interface WordnikExtract {
   url: string;
 }
 
+
 interface WordnikPluginSettings {
   template: string;
   shouldUseParagraphTemplate: boolean;
@@ -29,7 +30,7 @@ interface WordnikPluginSettings {
 }
 
 const DEFAULT_SETTINGS: WordnikPluginSettings = {
-  template: `## {{searchTerm}}\n {{text}}\n> [Additional info]({{url}})`,
+  template: `## {{searchTerm}}\n{{text}}\n{{relatedWords}}\n> [Additional info]({{url}})`,
   shouldUseParagraphTemplate: true,
   shouldBoldSearchTerm: true,
   paragraphTemplate: `> {{paragraphText}}\n>\n`,
@@ -47,6 +48,10 @@ export default class WordnikPlugin extends Plugin {
     return "https://api.wordnik.com/v4/word.json/" + encodeURIComponent(title) + "/definitions?limit=200&includeRelated=false&useCanonical=false&includeTags=false&api_key=" + this.settings.apiKey;
   }
 
+  getRelatedApiUrl(title: string): string {
+    return "https://api.wordnik.com/v4/word.json/" + encodeURIComponent(title) + "/relatedWords?useCanonical=false&limitPerRelationshipType=10&api_key=" + this.settings.apiKey;
+  }
+
 
   formatExtractText(extract: WordnikExtract, searchTerm: string): string {
     var textToReturn = ""
@@ -55,6 +60,14 @@ export default class WordnikPlugin extends Plugin {
         textToReturn += extract.text[i] + "\n"
       }
 
+    }
+    return textToReturn;
+  }
+
+  formatRelatedWordsText(extract: WordnikExtract, searchTerm: string): string {
+    var textToReturn = ""
+    for (var i = 0; i < extract.text.length; i++) {
+      textToReturn += extract.text[i] + "\n"
     }
     return textToReturn;
   }
@@ -84,15 +97,54 @@ export default class WordnikPlugin extends Plugin {
       text: definitions,
       url: json[0]["wordnikUrl"]
     }
-    console.log(extract)
+    console.log("definitions extract: ");
+    console.log(extract);
     return extract
   }
 
-  formatExtractInsert(extract: WordnikExtract, searchTerm: string): string {
+  parseRelatedResponse(json: any): WordnikExtract | undefined {
+    const lines : string[] = [];
+    var typesOfRelation = "| ";
+    var dashes = "|";
+    var allRelatedWords: Array<Array<string>> = [[],[],[],[],[],[],[],[],[],[]];
+    var relatedWordsLengths : Array<number> = []
+    for (let i = 0; i < json["length"]; i++) {
+      typesOfRelation += json[i]["relationshipType"] + " |";
+      dashes += " --- |";
+      relatedWordsLengths.push(json[i]["words"].length)
+    }
+    for (let i = 0; i < Math.max(...relatedWordsLengths); i++) {
+      for (let j = 0; j < json["length"]; j++) {
+        if (json[j]["words"][i] != undefined) {
+          allRelatedWords[i].push(json[j]["words"][i])
+        } else {
+          allRelatedWords[i].push("")
+        }
+      }
+    }
+    
+    lines.push(typesOfRelation);
+    lines.push(dashes);
+    for (let i = 0; i < allRelatedWords.length; i++) {
+      lines.push("| " + allRelatedWords[i].join(" | ") + " |");
+    }
+    const extract: WordnikExtract = {
+      title: "word",
+      text: lines,
+      url: ""
+    }
+    console.log("related extract: ");
+    console.log(extract);
+    return extract
+  }
+
+  formatExtractInsert(extract: WordnikExtract, relatedExtract: WordnikExtract, searchTerm: string): string {
     const formattedText = this.formatExtractText(extract, searchTerm);
+    const relatedWordsText = this.formatRelatedWordsText(relatedExtract, searchTerm);
     const template = this.settings.template;
     const formattedTemplate = template
       .replace("{{text}}", formattedText)
+      .replace("{{relatedWords}}", relatedWordsText)
       .replace("{{searchTerm}}", searchTerm)
       .replace("{{url}}", extract.url);
     return formattedTemplate;
@@ -100,6 +152,7 @@ export default class WordnikPlugin extends Plugin {
 
   async getWordnikText(title: string): Promise<WordnikExtract | undefined> {
     const url = this.getApiUrl(title);
+    console.log("definitions url: ")
     console.log(url)
     const requestParam: RequestParam = {
       url: url,
@@ -112,18 +165,44 @@ export default class WordnikPlugin extends Plugin {
             "Failed to get Wordnik data. Check your internet connection."
           )
       );
-    console.log(resp)
+    console.log("definitions resp: ");
+    console.log(resp);
     const extract = this.parseResponse(resp);
+    return extract;
+  }
+
+  async getRelatedWords(title: string): Promise<WordnikExtract | undefined> {
+    const url = this.getRelatedApiUrl(title);
+    console.log("related url: ");
+    console.log(url);
+    const requestParam: RequestParam = {
+      url: url,
+    };
+    const resp = await request(requestParam)
+      .then((r) => JSON.parse(r))
+      .catch(
+        () =>
+          new Notice(
+            "Failed to get Wordnik data. Check your internet connection."
+          )
+      );
+    console.log("related resp: ");
+    console.log(resp);
+    const extract = this.parseRelatedResponse(resp);
     return extract;
   }
 
   async pasteIntoEditor(editor: Editor, searchTerm: string) {
     let extract: WordnikExtract = await this.getWordnikText(searchTerm);
+    let relatedExtract: WordnikExtract = await this.getRelatedWords(searchTerm);
+    console.log("FROM PASTE INTO EDITOR");
+    console.log(extract.text);
+    console.log(relatedExtract.text);
     if (!extract) {
       this.handleNotFound(searchTerm);
       return;
     }
-    editor.replaceSelection(this.formatExtractInsert(extract, searchTerm));
+    editor.replaceSelection(this.formatExtractInsert(extract, relatedExtract, searchTerm));
   }
 
   async getWordnikTextForActiveFile(editor: Editor) {
