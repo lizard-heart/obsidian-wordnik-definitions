@@ -1,7 +1,7 @@
 {
   "name": "obsidian-wordnik",
   "version": "1.0.0",
-  "description": "Grabs information from Wordnik for a topic and brings it into Obsidian notes",
+  "description": "Grabs definitions and related words from Wordnik for a word and brings it into Obsidian notes",
   "main": "main.js",
   "scripts": {
     "dev": "rollup --config rollup.config.js -w",
