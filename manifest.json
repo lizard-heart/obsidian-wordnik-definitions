@@ -2,7 +2,7 @@
   "id": "obsidian-wordnik",
   "name": "Wordnik Definitions",
   "version": "1.0.0",
-  "minAppVersion": "0.9.12",
+  "minAppVersion": "0.9.7",
   "description": "Grabs information from Wordnik for a topic and brings it into Obsidian notes",
   "author": "Henry Gustafson",
   "authorUrl": "https://lizard-heart.github.io",

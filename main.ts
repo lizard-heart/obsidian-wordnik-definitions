@@ -21,25 +21,16 @@ interface WordnikExtract {
 
 interface WordnikPluginSettings {
   template: string;
-  shouldUseParagraphTemplate: boolean;
-  shouldBoldSearchTerm: boolean;
   apiKey: string;
-  paragraphTemplate: string;
-  language: string;
   maxDefinitions: number;
 }
 
 const DEFAULT_SETTINGS: WordnikPluginSettings = {
   template: `## {{searchTerm}}\n{{text}}\n{{relatedWords}}\n> [Additional info]({{url}})`,
-  shouldUseParagraphTemplate: true,
-  shouldBoldSearchTerm: true,
-  paragraphTemplate: `> {{paragraphText}}\n>\n`,
-  language: "en",
   apiKey: "",
   maxDefinitions: 5,
 };
 
-const disambiguationIdentifier = "may refer to:";
 export default class WordnikPlugin extends Plugin {
   settings: WordnikPluginSettings;
 
@@ -76,16 +67,6 @@ export default class WordnikPlugin extends Plugin {
     new Notice(`${searchTerm} not found in the wordnik database.`);
   }
 
-  handleCouldntResolveDisambiguation() {
-    new Notice(`Could not automatically resolve disambiguation.`);
-  }
-
-  hasDisambiguation(extract: WordnikExtract) {
-    // if (extract.text.includes(disambiguationIdentifier)) {
-    //   return true;
-    // }
-    return false;
-  }
 
   parseResponse(json: any): WordnikExtract | undefined {
     const definitions = []
@@ -222,12 +203,12 @@ export default class WordnikPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 
-    this.addCommand({
-      id: "wordnik-get-active-note-title",
-      name: "Get Wordik data for Active Note Title",
-      editorCallback: (editor: Editor) =>
-        this.getWordnikTextForActiveFile(editor),
-    });
+    // this.addCommand({
+    //   id: "wordnik-get-active-note-title",
+    //   name: "Get Wordik data for Active Note Title",
+    //   editorCallback: (editor: Editor) =>
+    //     this.getWordnikTextForActiveFile(editor),
+    // });
 
     this.addCommand({
       id: "wordnik-get-search-term",
@@ -314,22 +295,10 @@ class WikipediaSettingTab extends PluginSettingTab {
     containerEl.createEl("h2", { text: "Obsidian Wordnik" });
 
     new Setting(containerEl)
-      .setName("Wordnik Language Prefix")
-      .setDesc(`Choose Wordnik language prefix to use (ex. en for English)`)
-      .addText((textField) => {
-        textField
-          .setValue(this.plugin.settings.language)
-          .onChange(async (value) => {
-            this.plugin.settings.language = value;
-            await this.plugin.saveSettings();
-          });
-      });
-
-    new Setting(containerEl)
       .setName("Wordnik Extract Template")
       .setDesc(
         `Set markdown template for extract to be inserted.\n
-        Available template variables are {{text}}, {{searchTerm}} and {{url}}.
+        Available template variables are {{text}}, {{searchTerm}}, {{relatedWords}} and {{url}}.
         `
       )
       .addTextArea((textarea) =>
@@ -369,49 +338,5 @@ class WikipediaSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
-
-    new Setting(containerEl)
-      .setName("Bold Search Term?")
-      .setDesc(
-        "If set to true, the first instance of the search term will be **bolded**"
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.shouldBoldSearchTerm)
-          .onChange(async (value) => {
-            this.plugin.settings.shouldBoldSearchTerm = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Use paragraph template?")
-      .setDesc(
-        "If set to true, the paragraph template will be inserted for each paragraph of text for {{text}} in main template."
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.shouldUseParagraphTemplate)
-          .onChange(async (value) => {
-            this.plugin.settings.shouldUseParagraphTemplate = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Paragraph Template")
-      .setDesc(
-        `Set markdown template for extract paragraphs to be inserted.\n
-        Available template variables are: {{paragraphText}}
-        `
-      )
-      .addTextArea((textarea) =>
-        textarea
-          .setValue(this.plugin.settings.paragraphTemplate)
-          .onChange(async (value) => {
-            this.plugin.settings.paragraphTemplate = value;
-            await this.plugin.saveSettings();
-          })
-      );
   }
 }
