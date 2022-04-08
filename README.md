@@ -2,7 +2,7 @@
 
 This is a plugin is a modified version of the [Obsidian Wikipedia Plugin](https://github.com/jmilldotdev/obsidian-wikipedia) by [Jonathan Miller](https://github.com/jmilldotdev).
 
-https://user-images.githubusercontent.com/62226606/162362373-2559e37b-89be-42c6-9900-50ded594b6ca.mov
+https://user-images.githubusercontent.com/62226606/162363597-2ce5014f-cd3f-42ef-bed8-f6aecebcde74.mov
 
 
 ## Setup/Installation
