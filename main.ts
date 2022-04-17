@@ -203,12 +203,12 @@ export default class WordnikPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 
-    // this.addCommand({
-    //   id: "wordnik-get-active-note-title",
-    //   name: "Get Wordik data for Active Note Title",
-    //   editorCallback: (editor: Editor) =>
-    //     this.getWordnikTextForActiveFile(editor),
-    // });
+    this.addCommand({
+      id: "wordnik-get-active-note-title",
+      name: "Get Wordik data for Active Note Title",
+      editorCallback: (editor: Editor) =>
+        this.getWordnikTextForActiveFile(editor),
+    });
 
     this.addCommand({
       id: "wordnik-get-search-term",
